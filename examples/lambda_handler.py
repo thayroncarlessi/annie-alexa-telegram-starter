@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import html
 import json
 import os
 import time
@@ -14,10 +15,11 @@ def env(name: str) -> str:
 
 
 def response(text: str) -> dict:
+    safe_text = html.escape(text[:800])
     return {
         "version": "1.0",
         "response": {
-            "outputSpeech": {"type": "SSML", "ssml": f"<speak>{text}</speak>"},
+            "outputSpeech": {"type": "SSML", "ssml": f"<speak>{safe_text}</speak>"},
             "shouldEndSession": False,
         },
     }
@@ -39,16 +41,16 @@ def authorized(event: dict) -> bool:
 
 
 def invoke_gateway(event: dict) -> dict:
-    gateway_url = env("GATEWAY_URL").rstrip("/") + "/alexa"
+    base_url = env("GATEWAY_URL").rstrip("/")
     shared_secret = env("GATEWAY_SHARED_SECRET").encode("utf-8")
-    if not gateway_url or not shared_secret:
+    if not base_url or not shared_secret:
         raise RuntimeError("Gateway configuration is incomplete")
     body = json.dumps(event, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     timestamp = str(int(time.time()))
     material = timestamp.encode("ascii") + b"\n" + body
     signature = hmac.new(shared_secret, material, hashlib.sha256).hexdigest()
     request = Request(
-        gateway_url,
+        base_url + "/alexa",
         data=body,
         headers={
             "Content-Type": "application/json",
